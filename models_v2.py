@@ -439,7 +439,7 @@ def deit_small_patch16_36(pretrained=False, img_size=224, pretrained_21k = False
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
 
     return model
-    
+
 @register_model
 def deit_small_patch16_18x2_LS(pretrained=False, img_size=224, pretrained_21k = False,  **kwargs):
     model = vit_models(
