@@ -33,7 +33,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--epochs', default=800, type=int)
-    parser.add_argument('--bce-loss', default=True,action='store_true')
+    parser.add_argument('--bce-loss',action='store_true')
     parser.add_argument('--unscale-lr', action='store_true')
 
     # Model parameters
@@ -102,7 +102,7 @@ def get_args_parser():
     parser.add_argument('--train-interpolation', type=str, default='bicubic',
                         help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
 
-    parser.add_argument('--repeated-aug', default=True,action='store_true')
+    parser.add_argument('--repeated-aug',action='store_true')
     parser.add_argument('--no-repeated-aug', action='store_false', dest='repeated_aug')
     parser.set_defaults(repeated_aug=True)
     
@@ -110,7 +110,7 @@ def get_args_parser():
     parser.add_argument('--no-train-mode', action='store_false', dest='train_mode')
     parser.set_defaults(train_mode=True)
     
-    parser.add_argument('--ThreeAugment', default=True, action='store_true') #3augment
+    parser.add_argument('--ThreeAugment', action='store_true') #3augment
     
     parser.add_argument('--src', action='store_true') #simple random crop
     
