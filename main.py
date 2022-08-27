@@ -111,7 +111,8 @@ def get_args_parser():
     parser.set_defaults(train_mode=True)
     
     parser.add_argument('--ThreeAugment', action='store_true') #3augment
-    
+    parser.add_argument('--default_transform', action='store_true')  # 3augment
+    parser.set_defaults(default_transform=False)
     parser.add_argument('--src', action='store_true') #simple random crop
     
     # * Random Erase params
