@@ -31,7 +31,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
         score = torch.tensor(score).to(device, non_blocking=True)
-        score = (score**2)/0.95
+
         # if mixup_fn is not None:
         #     samples, targets = mixup_fn(samples, targets)
 

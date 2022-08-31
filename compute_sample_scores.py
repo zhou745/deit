@@ -62,6 +62,19 @@ def proecess_scores(scores,names):
         tmp_dict.update({name:scores_max[idx].item()})
     return(tmp_dict)
 
+def proecess_scores_v1(scores,names):
+    tmp_dict = {}
+    scores_max,index = scores.max(dim=1)
+    #pre define all the scores
+    scores_d = torch.ones((scores.shape[1]),dtype=torch.float32).to(scores_max.device)
+    for idx in range(index.shape[0]):
+        scores_d[index[idx]] += 1.
+
+    for idx in range(names.shape[0]):
+        name = names[idx].replace("/dataset/train/","")
+        tmp_dict.update({name:scores_d[idx].item()})
+    return(tmp_dict)
+
 def main():
     root_val_path = "./dataset_feature/train_val_noaug"
     train_val_f_path = root_val_path + "/train_ori"
@@ -90,7 +103,7 @@ def main():
             sim_train_noval, sim_val_noval,train_names, val_names = compute_sim_matrix(cls,train_cls_path,val_cls_path,device)
             # sim_train_val, sim_val_val = compute_sim_matrix(cls, train_val_cls_path, val_val_cls_path,device)
         #scoring the training sample
-        tmp_dict = proecess_scores(sim_val_noval,train_names)
+        tmp_dict = proecess_scores_v1(sim_val_noval,train_names)
         score_dict.update(tmp_dict)
     torch.save(score_dict,score_cls_path)
     print("compute finished")
