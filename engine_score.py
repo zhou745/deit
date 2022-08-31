@@ -20,7 +20,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
                     model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None,
-                    set_training_mode=True, args = None):
+                    set_training_mode=True, args=None):
     model.train(set_training_mode)
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -30,16 +30,19 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
     for samples, targets,path,score in metric_logger.log_every(data_loader, print_freq, header):
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
+        score = torch.tensor(score).to(device, non_blocking=True)
+        score = (score**2)/0.95
+        # if mixup_fn is not None:
+        #     samples, targets = mixup_fn(samples, targets)
 
-        if mixup_fn is not None:
-            samples, targets = mixup_fn(samples, targets)
-            
         if args.bce_loss:
             targets = targets.gt(0.0).type(targets.dtype)
-                    
+
         with torch.cuda.amp.autocast():
             outputs = model(samples)
-            loss = criterion(samples, outputs, targets)
+            # loss = criterion(samples, outputs, targets)
+            loss_vec = torch.nn.CrossEntropyLoss(reduction='none')(outputs,targets)
+            loss = (loss_vec*score).mean()
 
         loss_value = loss.item()
 
@@ -76,7 +79,7 @@ def evaluate(data_loader, model, device):
     # switch to evaluation mode
     model.eval()
 
-    for images, target,path in metric_logger.log_every(data_loader, 10, header):
+    for images, target, path in metric_logger.log_every(data_loader, 10, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
