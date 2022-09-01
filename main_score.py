@@ -14,7 +14,8 @@ from timm.data import Mixup
 from timm.models import create_model
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.scheduler import create_scheduler
-from timm.optim import create_optimizer
+# from timm.optim import create_optimizer
+from optim_factory import create_optimizer,get_parameter_groups, LayerDecayValueAssigner
 from timm.utils import NativeScaler, get_state_dict, ModelEma
 
 from datasets import build_dataset
@@ -182,6 +183,7 @@ def get_args_parser():
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     parser.add_argument('--tune_model', default='', help='the path to which model is loaded')
+    parser.add_argument('--layer_decay', type=float, default=0.65)
     return parser
 
 
@@ -329,7 +331,7 @@ def main(args):
 
     model_ema = None
     if args.model_ema:
-        # Important to create EMA model after cuda(), DP wrapper, and AMP but before SyncBN and DDP wrapper
+        # Important to create EMA model after cuda(), DPskip_weight_decay_list wrapper, and AMP but before SyncBN and DDP wrapper
         model_ema = ModelEma(
             model,
             decay=args.model_ema_decay,
@@ -345,7 +347,16 @@ def main(args):
     if not args.unscale_lr:
         linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
         args.lr = linear_scaled_lr
-    optimizer = create_optimizer(args, model_without_ddp)
+    # optimizer = create_optimizer(args, model_without_ddp)
+
+    skip_weight_decay_list = model.no_weight_decay()
+    num_layers = model_without_ddp.get_num_layers()
+    assigner = LayerDecayValueAssigner(list(args.layer_decay ** (num_layers + 1 - i) for i in range(num_layers + 2)))
+    optimizer = create_optimizer(
+        args, model_without_ddp, skip_list=skip_weight_decay_list,
+        get_num_layer=assigner.get_layer_id if assigner is not None else None,
+        get_layer_scale=assigner.get_scale if assigner is not None else None)
+
     loss_scaler = NativeScaler()
 
     lr_scheduler, _ = create_scheduler(args, optimizer)
