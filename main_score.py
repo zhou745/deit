@@ -349,7 +349,7 @@ def main(args):
         args.lr = linear_scaled_lr
     # optimizer = create_optimizer(args, model_without_ddp)
 
-    skip_weight_decay_list = model.no_weight_decay()
+    skip_weight_decay_list = model_without_ddp.no_weight_decay()
     num_layers = model_without_ddp.get_num_layers()
     assigner = LayerDecayValueAssigner(list(args.layer_decay ** (num_layers + 1 - i) for i in range(num_layers + 2)))
     optimizer = create_optimizer(
