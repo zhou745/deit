@@ -13,7 +13,8 @@ import datetime
 
 import torch
 import torch.distributed as dist
-
+import numpy as np
+import math
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -236,3 +237,23 @@ def init_distributed_mode(args):
                                          world_size=args.world_size, rank=args.rank)
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
+
+
+def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0,
+                     start_warmup_value=0, warmup_steps=-1):
+    warmup_schedule = np.array([])
+    warmup_iters = warmup_epochs * niter_per_ep
+    if warmup_steps > 0:
+        warmup_iters = warmup_steps
+    print("Set warmup steps = %d" % warmup_iters)
+    if warmup_epochs > 0:
+        warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_iters)
+
+    iters = np.arange(epochs * niter_per_ep - warmup_iters)
+    schedule = np.array(
+        [final_value + 0.5 * (base_value - final_value) * (1 + math.cos(math.pi * i / (len(iters)))) for i in iters])
+
+    schedule = np.concatenate((warmup_schedule, schedule))
+
+    assert len(schedule) == epochs * niter_per_ep
+    return schedule

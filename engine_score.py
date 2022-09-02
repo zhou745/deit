@@ -20,29 +20,51 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
                     model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None,
-                    set_training_mode=True, args=None):
+                    set_training_mode=True, args=None,start_steps=0,lr_schedule_values=None, wd_schedule_values=None,
+                    num_training_steps_per_epoch=1, update_freq=1):
     model.train(set_training_mode)
     metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    # metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('lr_min', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('lr_max', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
 
-    for samples, targets,path,score in metric_logger.log_every(data_loader, print_freq, header):
+    for data_iter_step, (samples, targets,path, score) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    # for samples, targets,path,score in metric_logger.log_every(data_loader, print_freq, header):
+        step = data_iter_step // update_freq
+        if step >= num_training_steps_per_epoch:
+            continue
+        it = start_steps + step  # global training iteration
+        lr_min = 999
+        lr_max = -999
+        if lr_schedule_values is not None or wd_schedule_values is not None and data_iter_step % update_freq == 0:
+            for i, param_group in enumerate(optimizer.param_groups):
+                if lr_schedule_values is not None:
+                    param_group["lr"] = lr_schedule_values[it] * param_group["lr_scale"]
+                    if lr_min>param_group["lr"]:
+                        lr_min = param_group["lr"]
+                    if lr_max < param_group["lr"]:
+                        lr_max = param_group["lr"]
+                if wd_schedule_values is not None and param_group["weight_decay"] > 0:
+                    param_group["weight_decay"] = wd_schedule_values[it]
+
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
-        score = torch.tensor(score).to(device, non_blocking=True)
+        score = score.to(device, non_blocking=True)
 
-        # if mixup_fn is not None:
-        #     samples, targets = mixup_fn(samples, targets)
+
+        if mixup_fn is not None:
+            samples, targets = mixup_fn(samples, targets,weight=score)
 
         if args.bce_loss:
             targets = targets.gt(0.0).type(targets.dtype)
 
         with torch.cuda.amp.autocast():
             outputs = model(samples)
-            # loss = criterion(samples, outputs, targets)
-            loss_vec = torch.nn.CrossEntropyLoss(reduction='none')(outputs,targets)
-            loss = (loss_vec*score).mean()
+            loss = criterion(samples, outputs, targets)
+            # loss_vec = torch.nn.CrossEntropyLoss(reduction='none')(outputs,targets)
+            # loss = (loss_vec*score).mean()
 
         loss_value = loss.item()
 
@@ -62,7 +84,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
             model_ema.update(model)
 
         metric_logger.update(loss=loss_value)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        # metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        metric_logger.update(lr_min=lr_min)
+        metric_logger.update(lr_max=lr_max)
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
